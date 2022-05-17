@@ -9,14 +9,15 @@ import logging
 import yaml
 
 from .base_dataset import BaseDataset, BaseDatasetSplit
+from .utils import DataProcessing
 from ..utils import make_dir, DATASET
-from .utils import BEVBox3D
 
 log = logging.getLogger(__name__)
 
 # Expect point clouds to be in npy format with train, val and test files in separate folders.
 # Expected format of npy files : ['x', 'y', 'z', 'class', 'feat_1', 'feat_2', ........,'feat_n'].
 # For test files, format should be : ['x', 'y', 'z', 'feat_1', 'feat_2', ........,'feat_n'].
+
 
 class HOPE_dataset(BaseDataset):
     #Used for Custom dataset testing with HOPE dataset
@@ -131,7 +132,7 @@ class HOPE_dataset(BaseDataset):
         Returns:
             A dataset split object providing the requested subset of the data.
         """
-        return SemanticKITTISplit(self, split=split)
+        return HOPESplit(self, split=split)
 
     def get_split_list(self, split):
         """Returns a dataset split.
@@ -162,14 +163,7 @@ class HOPE_dataset(BaseDataset):
             return files
         else:
             raise ValueError("Invalid split {}".format(split))
-        for seq_id in seq_list:
-            pc_path = join(dataset_path, seq_id)
-            file_list.append(
-                [join(pc_path, f) for f in np.sort(os.listdir(pc_path))])
 
-        file_list = np.concatenate(file_list, axis=0)
-
-        return file_list
 
     def is_tested(self, attr):
         """Checks if a datum in the dataset has been tested.
@@ -200,131 +194,70 @@ class HOPE_dataset(BaseDataset):
             attr: The attributes that correspond to the outputs passed in results.
         """
         cfg = self.cfg
-        pred = results['predict_labels']
         name = attr['name']
-        name_seq, name_points = name.split("_")
+        path = cfg.test_result_folder
+        make_dir(path)
 
-        test_path = join(cfg.test_result_folder, 'sequences')
-        make_dir(test_path)
-        save_path = join(test_path, name_seq, 'predictions')
-        make_dir(save_path)
-        test_file_name = name_points
         pred = results['predict_labels']
+        pred = np.array(self.label_to_names[pred])
 
-        for ign in cfg.ignored_label_inds:
-            pred[pred >= ign] += 1
-
-        store_path = join(save_path, name_points + '.label')
-
-        pred = self.remap_lut[pred].astype(np.uint32)
-        pred.tofile(store_path)
-
-    def save_test_result_kpconv(self, results, inputs):
-        cfg = self.cfg
-        for j in range(1):
-            name = inputs['attr']['name']
-            name_seq, name_points = name.split("_")
-
-            test_path = join(cfg.test_result_folder, 'sequences')
-            make_dir(test_path)
-            save_path = join(test_path, name_seq, 'predictions')
-            make_dir(save_path)
-
-            test_file_name = name_points
-
-            proj_inds = inputs['data'].reproj_inds[0]
-            probs = results[proj_inds, :]
-
-            pred = np.argmax(probs, 1)
-
-            store_path = join(save_path, name_points + '.label')
-            pred = pred + 1
-            pred = self.remap_lut[pred].astype(np.uint32)
-            pred.tofile(store_path)
-
-    def get_split_list(self, split):
-        """Returns a dataset split.
-
-        Args:
-            split: A string identifying the dataset split that is usually one of
-            'training', 'test', 'validation', or 'all'.
-
-        Returns:
-            A dataset split object providing the requested subset of the data.
-
-        Raises:
-            ValueError: Indicates that the split name passed is incorrect. The split name should be one of
-            'training', 'test', 'validation', or 'all'.
-        """
-        cfg = self.cfg
-        dataset_path = cfg.dataset_path
-        file_list = []
-
-        if split in ['train', 'training']:
-            seq_list = cfg.training_split
-        elif split in ['test', 'testing']:
-            seq_list = cfg.test_split
-        elif split in ['val', 'validation']:
-            seq_list = cfg.validation_split
-        elif split in ['all']:
-            seq_list = cfg.all_split
-        else:
-            raise ValueError("Invalid split {}".format(split))
-
-        for seq_id in seq_list:
-            pc_path = join(dataset_path, 'dataset', 'sequences', seq_id,
-                           'velodyne')
-            file_list.append(
-                [join(pc_path, f) for f in np.sort(os.listdir(pc_path))])
-
-        file_list = np.concatenate(file_list, axis=0)
-
-        return file_list
+        store_path = join(path, name + '.npy')
+        np.save(store_path, pred)
 
 
-class SemanticKITTISplit(BaseDatasetSplit):
+class HOPESplit(BaseDatasetSplit):
+    """This class is used to create a custom dataset split.
+
+    Initialize the class.
+
+    Args:
+        dataset: The dataset to split.
+        split: A string identifying the dataset split that is usually one of
+        'training', 'test', 'validation', or 'all'.
+        **kwargs: The configuration of the model as keyword arguments.
+
+    Returns:
+        A dataset split object providing the requested subset of the data.
+    """
 
     def __init__(self, dataset, split='training'):
         super().__init__(dataset, split=split)
-        log.info("Found {} pointclouds for {}".format(len(self.path_list),
-                                                      split))
-        self.remap_lut_val = dataset.remap_lut_val
+        self.cfg = dataset.cfg
+        path_list = dataset.get_split_list(split)
+        log.info("Found {} pointclouds for {}".format(len(path_list), split))
+
+        self.path_list = path_list
+        self.split = split
+        self.dataset = dataset
 
     def __len__(self):
         return len(self.path_list)
 
     def get_data(self, idx):
         pc_path = self.path_list[idx]
-        points = DataProcessing.load_pc_kitti(pc_path)
+        data = np.load(pc_path)
+        points = np.array(data[:, :3], dtype=np.float32)
 
-        dir, file = split(pc_path)
-        label_path = join(dir, '../labels', file[:-4] + '.label')
-        if not exists(label_path):
-            labels = np.zeros(np.shape(points)[0], dtype=np.int32)
-            if self.split not in ['test', 'all']:
-                raise FileNotFoundError(f' Label file {label_path} not found')
-
+        if (self.split != 'test'):
+            labels = np.array(data[:, 3], dtype=np.int32)
+            feat = data[:, 4:] if data.shape[1] > 4 else None
         else:
-            labels = DataProcessing.load_label_kitti(
-                label_path, self.remap_lut_val).astype(np.int32)
+            feat = np.array(data[:, 3:],
+                            dtype=np.float32) if data.shape[1] > 3 else None
+            labels = np.zeros((points.shape[0],), dtype=np.int32)
 
-        data = {
-            'point': points[:, 0:3],
-            'feat': None,
-            'label': labels,
-        }
+        data = {'point': points, 'feat': feat, 'label': labels}
 
         return data
 
     def get_attr(self, idx):
-        pc_path = self.path_list[idx]
-        dir, file = split(pc_path)
-        _, seq = split(split(dir)[0])
-        name = '{}_{}'.format(seq, file[:-4])
+        pc_path = Path(self.path_list[idx])
+        name = pc_path.name.replace('.npy', '')
 
-        pc_path = str(pc_path)
-        attr = {'idx': idx, 'name': name, 'path': pc_path, 'split': self.split}
+        attr = {'name': name, 'path': str(pc_path), 'split': self.split}
+
         return attr
+
 
 
 DATASET._register_module(HOPE_dataset)
