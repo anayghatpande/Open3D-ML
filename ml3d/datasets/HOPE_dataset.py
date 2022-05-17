@@ -49,7 +49,6 @@ class HOPE_dataset(BaseDataset):
                          name=name,
                          cache_dir=cache_dir,
                          use_cache=use_cache,
-                         class_weights=class_weights,
                          ignored_label_inds=ignored_label_inds,
                          test_result_folder=test_result_folder,
                          test_split=test_split,
@@ -64,7 +63,7 @@ class HOPE_dataset(BaseDataset):
         self.label_to_names = self.get_label_to_names()
         self.num_classes = len(self.label_to_names)
 
-        data_config = join(dirname(abspath(__file__)), '_resources/',
+        data_config = join(dirname(abspath(__file__)), 'configs/',
                            'hope_dataset_config.yml')
         DATA = yaml.safe_load(open(data_config, 'r'))
         #remap_dict = DATA["learning_map_inv"]
