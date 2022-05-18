@@ -116,12 +116,12 @@ class Custom3D(BaseDataset):
         self.ignored_labels = np.array(cfg.ignored_label_inds)
 
         self.train_dir = str(Path(cfg.dataset_path) / cfg.train_dir)
-        self.val_dir = str(Path(cfg.dataset_path) / cfg.val_dir)
-        self.test_dir = str(Path(cfg.dataset_path) / cfg.test_dir)
+        #self.val_dir = str(Path(cfg.dataset_path) / cfg.val_dir)
+        #self.test_dir = str(Path(cfg.dataset_path) / cfg.test_dir)
 
         self.train_files = [f for f in glob.glob(self.train_dir + "/*.npy")]
-        self.val_files = [f for f in glob.glob(self.val_dir + "/*.npy")]
-        self.test_files = [f for f in glob.glob(self.test_dir + "/*.npy")]
+        #self.val_files = [f for f in glob.glob(self.val_dir + "/*.npy")]
+        #self.test_files = [f for f in glob.glob(self.test_dir + "/*.npy")]
 
     @staticmethod
     def get_label_to_names():
