@@ -1,8 +1,8 @@
 import numpy as np
-import os, sys, glob, pickle
+import pandas as pd
+import os, glob, pickle
 from pathlib import Path
-from os.path import join, exists, dirname, abspath
-
+from os.path import join, exists, dirname, abspath, isdir
 from sklearn.neighbors import KDTree
 from tqdm import tqdm
 import logging
@@ -14,28 +14,78 @@ from ..utils import make_dir, DATASET
 
 log = logging.getLogger(__name__)
 
+
 # Expect point clouds to be in npy format with train, val and test files in separate folders.
 # Expected format of npy files : ['x', 'y', 'z', 'class', 'feat_1', 'feat_2', ........,'feat_n'].
 # For test files, format should be : ['x', 'y', 'z', 'feat_1', 'feat_2', ........,'feat_n'].
 
+class HopeDatasetSplit(BaseDatasetSplit):
+    """This class is used to create a custom dataset split.
 
-class HOPE_dataset(BaseDataset):
-    #Used for Custom dataset testing with HOPE dataset
+    Initialize the class.
+
+    Args:
+        dataset: The dataset to split.
+        split: A string identifying the dataset split that is usually one of
+        'training', 'test', 'validation', or 'all'.
+        **kwargs: The configuration of the model as keyword arguments.
+
+    Returns:
+        A dataset split object providing the requested subset of the data.
+    """
+
+    def __init__(self, dataset, split='train'):
+        super().__init__(dataset, split=split)
+        self.cfg = dataset.cfg
+        path_list = dataset.get_split_list(split)
+        log.info("Found {} pointclouds for {}".format(len(path_list), split))
+
+        self.path_list = path_list
+        self.split = split
+        self.dataset = dataset
+
+    def __len__(self):
+        return len(self.path_list)
+
+    def get_data(self, idx):
+        pc_path = self.path_list[idx]
+        data = np.load(pc_path)
+        points = np.array(data[:, :3], dtype=np.float32)
+
+        if (self.split != 'test'):
+            labels = np.array(data[:, 3], dtype=np.int32)
+            #feat = data[:, 4:] if data.shape[1] > 4 else None
+        else:
+            #feat = np.array(data[:, 3:],
+                            #dtype=np.float32) if data.shape[1] > 3 else None
+            labels = np.zeros((points.shape[0],), dtype=np.int32)
+
+        data = {'point': points, 'feat': None, 'label': labels}
+
+        return data
+
+    def get_attr(self, idx):
+        pc_path = Path(self.path_list[idx])
+        name = pc_path.name.replace('.npy', '')
+
+        attr = {'name': name, 'path': str(pc_path), 'split': self.split}
+
+        return attr
+
+
+class HopeDataset(BaseDataset):
+    # Used for Custom dataset testing with HOPE dataset
     def __int__(self,
                 dataset_path,
-                name='HOPE',
+                name='HopeDataset',
                 cache_dir='./logs/cache',
                 use_cache=False,
                 test_result_folder='./test',
                 ignored_label_inds=[0],
                 test_split=['00'],
-                training_split=[
-                    '01', '02', '03', '04', '05', '06', '07', '09'
-                ],
+                training_split=['00', '01', '02', '03', '04', '05', '06', '07', '09', '10'],
                 validation_split=['08'],
-                all_split=[
-                    '00', '01', '02', '03', '04', '05', '06', '07', '08', '09'
-                ],
+                all_split=['00', '01', '02', '03', '04', '05', '06', '07', '08', '09'],
                 **kwargs):
         """Initialize the dataset by passing the dataset and other details.
         Args:
@@ -58,28 +108,29 @@ class HOPE_dataset(BaseDataset):
                          **kwargs)
         cfg = self.cfg
 
-
-        #self.num_classes = 28 #debug
+        # self.num_classes = 28 #debug
+        self.dataset_path = cfg.dataset_path
         self.label_to_names = self.get_label_to_names()
         self.num_classes = len(self.label_to_names)
 
-        data_config = join(dirname(abspath(__file__)), 'configs/',
-                           'hope_dataset_config.yml')
-        DATA = yaml.safe_load(open(data_config, 'r'))
-        #remap_dict = DATA["learning_map_inv"]
+        #data_config = join(dirname(abspath(__file__)), 'configs/',
+                           #'hope_dataset_config.yml')
+        #DATA = yaml.safe_load(open(data_config, 'r'))
+        # remap_dict = DATA["learning_map_inv"]
 
         self.label_values = np.sort([k for k, v in self.label_to_names.items()])
         self.label_to_idx = {l: i for i, l in enumerate(self.label_values)}
         self.ignored_labels = np.array(cfg.ignored_label_inds)
 
-        self.train_dir = str(Path(cfg.dataset_path) / cfg.train_dir)
-        #self.val_dir = str(Path(cfg.dataset_path) / cfg.val_dir)
-        #self.test_dir = str(Path(cfg.dataset_path) / cfg.test_dir)
+        self.train_dir = str(Path(cfg.dataset_path) / '/train')
+        self.val_dir = str(Path(cfg.dataset_path) / '/val')
+        self.test_dir = str(Path(cfg.dataset_path) / '/test')
 
-        self.train_files = [f for f in glob.glob(self.train_dir + "/*.npy")]
-        #self.val_files = [f for f in glob.glob(self.val_dir + "/*.npy")]
-        #self.test_files = [f for f in glob.glob(self.test_dir + "/*.npy")]
-
+        self.train_files = [f for f in glob.glob(self.train_dir + "/*/*.npy")]
+        self.val_files = [f for f in glob.glob(self.val_dir + "/*/*.npy")]
+        self.test_files = [f for f in glob.glob(self.test_dir + "/*/*.npy")]
+        #self.all_files = glob.glob(
+            #str(Path(self.cfg.dataset_path) / "/*.npy"))
 
     @staticmethod
     def get_label_to_names():
@@ -131,7 +182,7 @@ class HOPE_dataset(BaseDataset):
         Returns:
             A dataset split object providing the requested subset of the data.
         """
-        return HOPESplit(self, split=split)
+        return HopeDatasetSplit(self, split=split)
 
     def get_split_list(self, split):
         """Returns a dataset split.
@@ -162,7 +213,6 @@ class HOPE_dataset(BaseDataset):
             return files
         else:
             raise ValueError("Invalid split {}".format(split))
-
 
     def is_tested(self, attr):
         """Checks if a datum in the dataset has been tested.
@@ -204,69 +254,4 @@ class HOPE_dataset(BaseDataset):
         np.save(store_path, pred)
 
 
-class HOPESplit(BaseDatasetSplit):
-    """This class is used to create a custom dataset split.
-
-    Initialize the class.
-
-    Args:
-        dataset: The dataset to split.
-        split: A string identifying the dataset split that is usually one of
-        'training', 'test', 'validation', or 'all'.
-        **kwargs: The configuration of the model as keyword arguments.
-
-    Returns:
-        A dataset split object providing the requested subset of the data.
-    """
-
-    def __init__(self, dataset, split='training'):
-        super().__init__(dataset, split=split)
-        self.cfg = dataset.cfg
-        path_list = dataset.get_split_list(split)
-        log.info("Found {} pointclouds for {}".format(len(path_list), split))
-
-        self.path_list = path_list
-        self.split = split
-        self.dataset = dataset
-
-    def __len__(self):
-        return len(self.path_list)
-
-    def get_data(self, idx):
-        pc_path = self.path_list[idx]
-        data = np.load(pc_path)
-        points = np.array(data[:, :3], dtype=np.float32)
-
-        if (self.split != 'test'):
-            labels = np.array(data[:, 3], dtype=np.int32)
-            feat = data[:, 4:] if data.shape[1] > 4 else None
-        else:
-            feat = np.array(data[:, 3:],
-                            dtype=np.float32) if data.shape[1] > 3 else None
-            labels = np.zeros((points.shape[0],), dtype=np.int32)
-
-        data = {'point': points, 'feat': feat, 'label': labels}
-
-        return data
-
-    def get_attr(self, idx):
-        pc_path = Path(self.path_list[idx])
-        name = pc_path.name.replace('.npy', '')
-
-        attr = {'name': name, 'path': str(pc_path), 'split': self.split}
-
-        return attr
-
-
-
-DATASET._register_module(HOPE_dataset)
-
-
-
-
-
-
-
-
-
-
+DATASET._register_module(HopeDataset)
