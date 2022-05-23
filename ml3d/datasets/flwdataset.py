@@ -19,99 +19,51 @@ log = logging.getLogger(__name__)
 # Expected format of npy files : ['x', 'y', 'z', 'class', 'feat_1', 'feat_2', ........,'feat_n'].
 # For test files, format should be : ['x', 'y', 'z', 'feat_1', 'feat_2', ........,'feat_n'].
 
-class HopeDatasetSplit(BaseDatasetSplit):
-    """This class is used to create a custom dataset split.
-
-    Initialize the class.
+class FLWDataset(BaseDataset):
+    """A class for FLW Dataset can be used with a dataloader to
+    feed data when training a model. This inherits all functions from the base
+    dataset. Initialize the function by passing the dataset and other details.
 
     Args:
-        dataset: The dataset to split.
-        split: A string identifying the dataset split that is usually one of
-        'training', 'test', 'validation', or 'all'.
-        **kwargs: The configuration of the model as keyword arguments.
-
-    Returns:
-        A dataset split object providing the requested subset of the data.
+        dataset_path: The path to the dataset to use.
+        name: The name of the dataset.
+        cache_dir: The directory where the cache is stored.
+        use_cache: Indicates if the dataset should be cached.
+        num_points: The maximum number of points to use when splitting the dataset.
+        ignored_label_inds: A list of labels that should be ignored in the dataset.
+        test_result_folder: The folder where the test results should be stored.
     """
 
-    def __init__(self, dataset, split='train'):
-        super().__init__(dataset, split=split)
-        self.cfg = dataset.cfg
-        path_list = dataset.get_split_list(split)
-        log.info("Found {} pointclouds for {}".format(len(path_list), split))
-
-        self.path_list = path_list
-        self.split = split
-        self.dataset = dataset
-
-    def __len__(self):
-        return len(self.path_list)
-
-    def get_data(self, idx):
-        pc_path = self.path_list[idx]
-        data = np.load(pc_path)
-        points = np.array(data[:, :3], dtype=np.float32)
-
-        if (self.split != 'test'):
-            labels = np.array(data[:, 3], dtype=np.int32)
-            #feat = data[:, 4:] if data.shape[1] > 4 else None
-        else:
-            #feat = np.array(data[:, 3:],
-                            #dtype=np.float32) if data.shape[1] > 3 else None
-            labels = np.zeros((points.shape[0],), dtype=np.int32)
-
-        data = {'point': points, 'feat': None, 'label': labels}
-
-        return data
-
-    def get_attr(self, idx):
-        pc_path = Path(self.path_list[idx])
-        name = pc_path.name.replace('.npy', '')
-
-        attr = {'name': name, 'path': str(pc_path), 'split': self.split}
-
-        return attr
-
-
-class HopeDataset(BaseDataset):
-    # Used for Custom dataset testing with HOPE dataset
     def __int__(self,
                 dataset_path,
-                name='HopeDataset',
+                task='segmentation',
+                name='FLWDataset',
                 cache_dir='./logs/cache',
                 use_cache=False,
+                class_weights=[4919229, 318158, 375640,478001, 974733, 650464, 791496, 88727, 1284130, 2272837],
+                num_points=40960,
                 test_result_folder='./test',
-                ignored_label_inds=[0],
-                test_split=['00'],
-                training_split=['00', '01', '02', '03', '04', '05', '06', '07', '09', '10'],
-                validation_split=['08'],
-                all_split=['00', '01', '02', '03', '04', '05', '06', '07', '08', '09'],
+                ignored_label_inds=[],
                 **kwargs):
-        """Initialize the dataset by passing the dataset and other details.
-        Args:
-            dataset_path (str): The path to the dataset to use.
-            name (str): The name of the dataset (HOPE in this case).
-            cache_dir (str): The directory where the cache is stored.
-            num_points: The maximum number of points to use when splitting the dataset.
-            use_cache (bool): Indicates if the dataset should be cached.
-        """
+
         super().__init__(dataset_path=dataset_path,
                          name=name,
+                         task=task,
                          cache_dir=cache_dir,
                          use_cache=use_cache,
+                         class_weights=class_weights,
+                         num_points=num_points,
                          ignored_label_inds=ignored_label_inds,
                          test_result_folder=test_result_folder,
-                         test_split=test_split,
-                         training_split=training_split,
-                         validation_split=validation_split,
-                         all_split=all_split,
                          **kwargs)
         cfg = self.cfg
+        assert isdir(dataset_path), f"Invalid dataset path {dataset_path}"
 
         # self.num_classes = 28 #debug
         self.dataset_path = cfg.dataset_path
         self.label_to_names = self.get_label_to_names()
         self.num_classes = len(self.label_to_names)
+
 
         #data_config = join(dirname(abspath(__file__)), 'configs/',
                            #'hope_dataset_config.yml')
@@ -122,9 +74,9 @@ class HopeDataset(BaseDataset):
         self.label_to_idx = {l: i for i, l in enumerate(self.label_values)}
         self.ignored_labels = np.array(cfg.ignored_label_inds)
 
-        self.train_dir = str(Path(cfg.dataset_path) / '/train')
-        self.val_dir = str(Path(cfg.dataset_path) / '/val')
-        self.test_dir = str(Path(cfg.dataset_path) / '/test')
+        self.train_dir = str(Path(cfg.dataset_path) / 'train')
+        self.val_dir = str(Path(cfg.dataset_path) / 'val')
+        self.test_dir = str(Path(cfg.dataset_path) / 'test')
 
         self.train_files = [f for f in glob.glob(self.train_dir + "/*/*.npy")]
         self.val_files = [f for f in glob.glob(self.val_dir + "/*/*.npy")]
@@ -182,7 +134,7 @@ class HopeDataset(BaseDataset):
         Returns:
             A dataset split object providing the requested subset of the data.
         """
-        return HopeDatasetSplit(self, split=split)
+        return FLWDatasetSplit(self, split=split)
 
     def get_split_list(self, split):
         """Returns a dataset split.
@@ -253,5 +205,58 @@ class HopeDataset(BaseDataset):
         store_path = join(path, name + '.npy')
         np.save(store_path, pred)
 
+class FLWDatasetSplit(BaseDatasetSplit):
+    """This class is used to create a custom dataset split.
 
-DATASET._register_module(HopeDataset)
+    Initialize the class.
+
+    Args:
+        dataset: The dataset to split.
+        split: A string identifying the dataset split that is usually one of
+        'training', 'test', 'validation', or 'all'.
+        **kwargs: The configuration of the model as keyword arguments.
+
+    Returns:
+        A dataset split object providing the requested subset of the data.
+    """
+
+    def __init__(self, dataset, split='train'):
+        super().__init__(dataset, split=split)
+        self.cfg = dataset.cfg
+        path_list = dataset.get_split_list(split)
+        log.info("Found {} pointclouds for {}".format(len(path_list), split))
+
+        self.path_list = path_list
+        self.split = split
+        self.dataset = dataset
+
+    def __len__(self):
+        return len(self.path_list)
+
+    def get_data(self, idx):
+        pc_path = self.path_list[idx]
+        data = np.load(pc_path)
+        points = np.array(data[:, :3], dtype=np.float32)
+
+        if (self.split != 'test'):
+            labels = np.array(data[:, 3], dtype=np.int32)
+            #feat = data[:, 4:] if data.shape[1] > 4 else None
+        else:
+            #feat = np.array(data[:, 3:],
+                            #dtype=np.float32) if data.shape[1] > 3 else None
+            labels = np.zeros((points.shape[0],), dtype=np.int32)
+
+        data = {'point': points, 'feat': None, 'label': labels}
+
+        return data
+
+    def get_attr(self, idx):
+        pc_path = Path(self.path_list[idx])
+        name = pc_path.name.replace('.npy', '')
+
+        attr = {'name': name, 'path': str(pc_path), 'split': self.split}
+
+        return attr
+
+
+DATASET._register_module(FLWDataset)
