@@ -291,7 +291,7 @@ class FLWDATASETS3DISSplit(BaseDatasetSplit):
 
         points = np.array(pc[:, :3], dtype=np.float32)
         feat = np.array(pc[:, 3:6], dtype=np.float32)
-        labels = np.array(pc[:, 7], dtype=np.int32).reshape((-1,))
+        labels = np.array(pc[:, 6], dtype=np.int32).reshape((-1,))
 
         data = {
             'point': points,
