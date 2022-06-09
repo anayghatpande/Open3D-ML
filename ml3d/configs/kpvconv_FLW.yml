@@ -7,7 +7,7 @@ dataset:
   478001, 974733, 650464, 791496, 88727, 1284130, 229758, 2272837, 3370714, 2856755]
   ignored_label_inds: []
   num_points: 40960
-  test_area_idx: 3
+  test_area_idx: 5
   test_result_folder: ./test
   use_cache: false
 model:
@@ -82,20 +82,20 @@ model:
 pipeline:
   name: SemanticSegmentation
   adam_lr: 0.01
-  batch_size: 3
+  batch_size: 6
   learning_rate: 0.01
   lr_decays: 0.98477
   deform_lr_factor: 0.1
   main_log_dir: ./logs
-  max_epoch: 800
+  max_epoch: 100
   momentum: 0.98
   save_ckpt_freq: 10
   scheduler_gamma: 0.98477
-  test_batch_size: 4
+  test_batch_size: 6
   train_sum_dir: train_log
-  val_batch_size: 4
+  val_batch_size: 6
   weight_decay: 0.001
-  num_workers: 0 # suggested from issue open3dml
+  #num_workers: 0 # suggested from issue open3dml
   summary:
     record_for: []
     max_pts:
