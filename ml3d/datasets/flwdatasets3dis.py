@@ -30,9 +30,9 @@ class FLWDATASETS3DIS(BaseDataset):
                  use_cache=False,
                  class_weights=[3370714, 2856755, 4919229, 318158, 375640,
                                 478001, 974733, 650464, 791496, 88727, 1284130, 229758, 2272837, 3370714, 2856755, 4919229, 318158, 375640,
-                                478001, 974733, 650464, 791496, 88727, 1284130, 229758, 2272837, 3370714, 2856755 ],
+                                478001, 974733, 650464], #changed acc. YCB
                  num_points=40960,
-                 test_area_idx=3,
+                 test_area_idx=1,
                  ignored_label_inds=[],
                  ignored_objects=[],
                  test_result_folder='./test',
@@ -75,7 +75,7 @@ class FLWDATASETS3DIS(BaseDataset):
         self.label_to_idx = {l: i for i, l in enumerate(self.label_values)}
         self.ignored_labels = np.array([])
 
-        self.test_split = '0' + str(cfg.test_area_idx)
+        self.test_split = str(cfg.test_area_idx) #changes according to YCB
 
         self.pc_path = join(self.cfg.dataset_path, 'original_pkl')
 
@@ -118,13 +118,13 @@ class FLWDATASETS3DIS(BaseDataset):
             18: 'object18',
             19: 'object19',
             20: 'object20',
-            21: 'object21',
-            22: 'object22',
-            23: 'object23',
-            24: 'object24',
-            25: 'object25',
-            26: 'object26',
-            27: 'object27'
+            # 21: 'object21',
+            # 22: 'object22',
+            # 23: 'object23',
+            # 24: 'object24',
+            # 25: 'object25',
+            # 26: 'object26',
+            # 27: 'object27' # changes acc. YCB
         }
         return label_to_names
 
@@ -204,7 +204,7 @@ class FLWDATASETS3DIS(BaseDataset):
     def create_ply_files(dataset_path, class_names):
         os.makedirs(join(dataset_path, 'original_pkl'), exist_ok=True)
         anno_file = Path(abspath(
-            __file__)).parent / '_resources' / 'anno_paths.txt'
+            __file__)).parent / '_resources' / 'anno_paths_YCB.txt' # changes acc. to YCB'
 
         anno_file = str(anno_file)
         anno_paths = [line.rstrip() for line in open(anno_file)]
