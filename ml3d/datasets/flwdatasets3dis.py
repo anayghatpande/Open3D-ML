@@ -32,7 +32,7 @@ class FLWDATASETS3DIS(BaseDataset):
                                 478001, 974733, 650464, 791496, 88727, 1284130, 229758, 2272837, 3370714, 2856755, 4919229, 318158, 375640,
                                 478001, 974733, 650464], #changed acc. YCB
                  num_points=40960,
-                 test_area_idx=1,
+                 test_area_idx=3,
                  ignored_label_inds=[],
                  ignored_objects=[],
                  test_result_folder='./test',
@@ -75,7 +75,7 @@ class FLWDATASETS3DIS(BaseDataset):
         self.label_to_idx = {l: i for i, l in enumerate(self.label_values)}
         self.ignored_labels = np.array([])
 
-        self.test_split = str(cfg.test_area_idx) #changes according to YCB
+        self.test_split = 's3dis_FLW_dataset_' + str(cfg.test_area_idx) #changes according to YCB
 
         self.pc_path = join(self.cfg.dataset_path, 'original_pkl')
 
@@ -149,12 +149,12 @@ class FLWDATASETS3DIS(BaseDataset):
         if split in ['test', 'testing', 'val', 'validation']:
             file_list = [
                 f for f in self.all_files
-                if '0' + str(cfg.test_area_idx) in f
+                if 's3dis_FLW_dataset_' + str(cfg.test_area_idx) in f
             ]
         elif split in ['train', 'training']:
             file_list = [
                 f for f in self.all_files
-                if '0' + str(cfg.test_area_idx) not in f
+                if 's3dis_FLW_dataset_' + str(cfg.test_area_idx) not in f
             ]
         elif split in ['all']:
             file_list = self.all_files
