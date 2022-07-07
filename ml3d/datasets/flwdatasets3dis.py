@@ -84,7 +84,6 @@ class FLWDATASETS3DIS(BaseDataset):
 
         self.pc_path = join(self.cfg.dataset_path, 'original_pkl')
 
-
         if not exists(self.pc_path):
             print("creating dataset")
             #self.create_ply_files(self.cfg.dataset_path, self.label_to_names)
