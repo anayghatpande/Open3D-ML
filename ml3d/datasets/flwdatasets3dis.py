@@ -10,7 +10,12 @@ import logging
 from .utils import DataProcessing, get_min_bbox, BEVBox3D
 from .base_dataset import BaseDataset, BaseDatasetSplit
 from ..utils import make_dir, DATASET
-
+import time
+from multiprocessing import Process
+import multiprocessing as mp
+from multiprocessing import process
+process.current_process()._config.get('tempdir')
+process.current_process()._config['tempdir'] = '/data/tmp/'
 log = logging.getLogger(__name__)
 
 
@@ -81,7 +86,10 @@ class FLWDATASETS3DIS(BaseDataset):
 
         if not exists(self.pc_path):
             print("creating dataset")
-            self.create_ply_files(self.cfg.dataset_path, self.label_to_names)
+            #self.create_ply_files(self.cfg.dataset_path, self.label_to_names)
+            all_processes = mp.Process(target=self.create_ply_files, args=(self.cfg.dataset_path, self.label_to_names))
+            all_processes.start()
+            all_processes.join()
 
         # TODO : if num of ply files < 272, then create.
 
@@ -222,24 +230,29 @@ class FLWDATASETS3DIS(BaseDataset):
 
             data_list = []
             bboxes = []
-            for file in glob.glob(str(anno_path / '*.txt')):
-                class_name = Path(file).name.split('_')[0]
+            if not os.path.exists(save_path):
+                for file in glob.glob(str(anno_path / '*.txt')):
+                    class_name = Path(file).name.split('_')[0]
 
-                #if class_name not in class_names:
-                 #   class_name = 'clutter'
+                    #if class_name not in class_names:
+                     #   class_name = 'clutter'
 
-                pc = pd.read_csv(file, header=None,
-                                 delim_whitespace=True).values
-                labels = np.ones((pc.shape[0], 1)) * label_to_idx[class_name]
-                data_list.append(np.concatenate([pc, labels], 1))
-                bbox = [class_name] + get_min_bbox(pc)
-                bboxes.append(bbox)
+                    pc = pd.read_csv(file, header=None,
+                                     delim_whitespace=True).values
+                    labels = np.ones((pc.shape[0], 1)) * label_to_idx[class_name]
+                    data_list.append(np.concatenate([pc, labels], 1))
+                    bbox = [class_name] + get_min_bbox(pc)
+                    bboxes.append(bbox)
 
-            pc_label = np.concatenate(data_list, 0)
+                pc_label = np.concatenate(data_list, 0)
 
-            info = [pc_label, bboxes]
-            with open(save_path, 'wb') as f:
-                pickle.dump(info, f)
+                info = [pc_label, bboxes]
+
+                with open(save_path, 'wb') as f:
+                    pickle.dump(info, f)
+            else:
+                print("skipping")
+
 
     @staticmethod
     def read_bboxes(bboxes, ignored_objects):
@@ -319,6 +332,7 @@ class Object3d(BEVBox3D):
         super().__init__(center, size, yaw, name, -1.0)
 
         self.occlusion = 0.0
+
 
 
 DATASET._register_module(FLWDATASETS3DIS)
